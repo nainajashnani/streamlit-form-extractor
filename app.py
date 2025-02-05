@@ -35,8 +35,8 @@ if uploaded_files:
         first_half = "\n".join(lines[:len(lines)//2])  # Top/Middle of the page
         last_half = "\n".join(lines[len(lines)//2:])   # Bottom of the page
 
-        # Extract Form Name (Look in the first half)
-        form_name_match = re.search(r"([A-Za-z\s\-]+(?:[A-Z]+)?)", first_half)
+       # Extract Form Name (Look in the first half)
+        form_name_match = re.search(r"(?:Form Name[:\-]?\s*)([A-Za-z\s\-]+(?:[A-Z]+)?)", first_half)
         form_name = form_name_match.group(1).strip() if form_name_match else "Not Found"
 
         # Extract Form Number (Look in the last few lines)
