@@ -35,10 +35,10 @@ if uploaded_files:
         first_half = "\n".join(lines[:len(lines)//2])  # Top/Middle of the page
         last_half = "\n".join(lines[len(lines)//2:])   # Bottom of the page
 
-       # Extract Form Name (Look in the first half)
-        form_name_match = re.search(r"(?:Form Name[:\-]?\s*)([A-Za-z\s\-]+(?:[A-Z]+)?)", first_half)
+        # Extract Form Name (Find the first uppercase block of text)
+        form_name_match = re.search(r"\n([A-Z][A-Z\s\-]+)\n", first_half, re.DOTALL)
         form_name = form_name_match.group(1).strip() if form_name_match else "Not Found"
-
+   
         # Extract Form Number (Look in the last few lines)
         form_number_match = re.search(r"\b([A-Z]+\s?\d{4,6}[A-Z]*)\b", last_half)
         form_number = form_number_match.group(1) if form_number_match else "Not Found"
