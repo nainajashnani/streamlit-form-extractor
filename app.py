@@ -1,58 +1,64 @@
-import streamlit as st
-import os
-import re
+import streamlit as st 
 import pytesseract
 import pandas as pd
-from pdf2image import convert_from_path
+import re
+from pdf2image import convert_from_bytes
 from PIL import Image
 
+# Set Tesseract path
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+
 st.title("📄 Form Extractor App")
-st.write("Upload PDFs to extract Form Name, Form Number, and Edition Date.")
+st.write("Upload multiple PDFs to extract Form Name, Form Number, and Edition Date.")
 
 # File uploader
 uploaded_files = st.file_uploader("Upload PDF Files", type=["pdf"], accept_multiple_files=True)
 
 if uploaded_files:
     results = []
-
+    
     for uploaded_file in uploaded_files:
-        st.write(f"Processing: {uploaded_file.name}")
+        st.write(f"📂 Processing: {uploaded_file.name}")
 
-        # Save uploaded file
-        with open(uploaded_file.name, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        # Convert only the first page to an image
+        images = convert_from_bytes(uploaded_file.getvalue(), dpi=300, first_page=1, last_page=1)
+        image = images[0]
 
-        # Convert PDF to images
-        images = convert_from_path(uploaded_file.name, dpi=300)
+        # Extract text using Tesseract
+        extracted_text = pytesseract.image_to_string(image)
 
-        for i, image in enumerate(images):
-            extracted_text = pytesseract.image_to_string(image)
+        # Debugging: Display extracted text
+        st.text_area(f"Extracted Text from {uploaded_file.name}", extracted_text, height=150)
 
-            # Extract Form Name
-            form_name_match = re.search(r"PEST CONTROL PROPERTY DAMAGE BROADENING\s*COVERAGE FOR TREATMENT RENEWAL", extracted_text, re.DOTALL)
-            form_name = form_name_match.group(0).strip() if form_name_match else "Not Found"
+        # Split text into sections for better accuracy
+        lines = extracted_text.split("\n")
+        first_half = "\n".join(lines[:len(lines)//2])  # Top/Middle of the page
+        last_half = "\n".join(lines[len(lines)//2:])   # Bottom of the page
 
-            # Extract Form Number (e.g., PCPGL 0009)
-            form_number_match = re.search(r"([A-Z]+ \d{4})", extracted_text)
-            form_number = form_number_match.group(1) if form_number_match else "Not Found"
+        # Extract Form Name (Look in the first half)
+        form_name_match = re.search(r"([A-Za-z\s\-]+(?:[A-Z]+)?)", first_half)
+        form_name = form_name_match.group(1).strip() if form_name_match else "Not Found"
 
-            # Extract Edition Date (e.g., 06 24)
-            edition_date_match = re.search(r"(\d{2} \d{2})", extracted_text)
-            edition_date = edition_date_match.group(1) if edition_date_match else "Not Found"
+        # Extract Form Number (Look in the last few lines)
+        form_number_match = re.search(r"\b([A-Z]+\s?\d{4,6}[A-Z]*)\b", last_half)
+        form_number = form_number_match.group(1) if form_number_match else "Not Found"
 
-            # Store results
-            results.append({
-                "File Name": uploaded_file.name,
-                "Page": i + 1,
-                "Form Name": form_name,
-                "Form Number": form_number,
-                "Edition Date": edition_date
-            })
+        # Extract Edition Date (Look in the last few lines)
+        edition_date_match = re.search(r"\b(\d{2}[\/\-]\d{2,4}|\d{2} \d{2,4})\b", last_half)
+        edition_date = edition_date_match.group(1) if edition_date_match else "Not Found"
 
-    # Convert results to DataFrame
+        # Store extracted data
+        results.append({
+            "File Name": uploaded_file.name,
+            "Form Name": form_name,
+            "Form Number": form_number,
+            "Edition Date": edition_date
+        })
+
+    # Convert results to DataFrame and display
     df = pd.DataFrame(results)
     st.dataframe(df)
 
-    # Download CSV
+    # Download results as CSV
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Download Results", csv, "extracted_forms.csv", "text/csv")
+    st.download_button("📥 Download Extracted Data", csv, "extracted_forms.csv", "text/csv")
